@@ -221,7 +221,8 @@ if [[ "$DO_DEPS" -eq 1 ]]; then
     blas-devel lapack-devel \
     sqlite-devel \
     libjpeg-turbo-devel libpng-devel \
-    libyuv-devel
+    libyuv-devel \
+    python3-onnx
 
   # dlib is optional (Open Video Eye Contact landmarks) and is not packaged in
   # current Fedora repos. Install it yourself and pass -Ddlib_DIR=... if wanted.
