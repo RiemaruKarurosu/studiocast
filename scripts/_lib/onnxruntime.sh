@@ -93,11 +93,16 @@ ensure_onnxruntime_available() {
     sudo ln -sf "$(basename "${sofile}")" "${ort_libdir}/libonnxruntime.so"
   fi
 
-  # Make the shared library discoverable for runtime linking.
-  printf '%s\n' "${ort_libdir}" > "${tmpdir}/studiocast-onnxruntime.conf"
-  sudo install -m 0644 "${tmpdir}/studiocast-onnxruntime.conf" \
-    /etc/ld.so.conf.d/studiocast-onnxruntime.conf
-  sudo ldconfig
+  # Deliberately NOT added to /etc/ld.so.conf.d: this tarball is a private
+  # dependency of StudioCast, and putting its lib directory on the global
+  # loader path makes every other consumer of libonnxruntime.so.1 on the system
+  # resolve to it too. On distros that package ONNX Runtime, that silently
+  # breaks them on a version mismatch. The rpath below binds only our binaries.
+  if [[ -e /etc/ld.so.conf.d/studiocast-onnxruntime.conf ]]; then
+    log "Removing global loader override left by an earlier install."
+    sudo rm -f /etc/ld.so.conf.d/studiocast-onnxruntime.conf
+    sudo ldconfig
+  fi
 
   # Provide a pkg-config file so our CMake can pick it up via pkg_check_modules(onnxruntime).
   local ort_pcdir
@@ -111,7 +116,7 @@ includedir=\${prefix}/include
 Name: onnxruntime
 Description: ONNX Runtime
 Version: ${ORT_VERSION}
-Libs: -L\${libdir} -lonnxruntime
+Libs: -L\${libdir} -Wl,-rpath,\${libdir} -lonnxruntime
 Cflags: -I\${includedir}
 EOF
 
