@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/config/settings.h"
+#include "core/maxine/paths.h"
 #include "core/maxine/effects/vfx_background_blur_effect.h"
 #include "core/maxine/effects/vfx_green_screen_effect.h"
 #include "core/maxine/nvcv_api.h"
@@ -126,7 +127,13 @@ int main(int argc, char **argv) {
   const std::string cmd = argv[1];
 
   const fs::path base = studiocast::util::StudioCastMaxineDir();
-  const fs::path vfx = studiocast::util::DefaultVfxRoot();
+  // Same resolution the daemon uses (env override, then XDG, then /usr/local):
+  // DefaultVfxRoot() only ever returns the XDG path, so a system SDK install
+  // was reported as missing here while the daemon found it.
+  const fs::path vfx = [] {
+    const auto resolved = studiocast::maxine::ResolveMaxinePaths().vfx.root;
+    return resolved.empty() ? studiocast::util::DefaultVfxRoot() : resolved;
+  }();
   const fs::path ar = studiocast::util::DefaultArRoot();
   const fs::path afx = studiocast::util::DefaultAfxRoot();
 
@@ -322,7 +329,7 @@ int main(int argc, char **argv) {
     int frames = 1;
     std::uint32_t mode = 0;
     bool temporal = true;
-    fs::path model_dir = vfx / "models";
+    fs::path model_dir = studiocast::maxine::ResolveModelsDir(vfx);
 
     for (int i = 2; i < argc; ++i) {
       const std::string a = argv[i];
@@ -546,7 +553,7 @@ int main(int argc, char **argv) {
     std::uint32_t mode = 0;
     bool temporal = true;
     int strength = 32; // UI knob [1..64]
-    fs::path model_dir = vfx / "models";
+    fs::path model_dir = studiocast::maxine::ResolveModelsDir(vfx);
 
     for (int i = 2; i < argc; ++i) {
       const std::string a = argv[i];
