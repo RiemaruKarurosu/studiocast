@@ -237,9 +237,14 @@ bool VfxGreenScreenEffect::ApplyConfigLocked(std::string *error) {
   }
 
   // Temporal flag.
+  //
+  // VFX SDK 1.2 dropped this selector for Green Screen: temporal consistency is
+  // carried by the state variables set up below instead. Older SDKs still
+  // expect it, so set it when supported and treat a rejected selector as the
+  // newer contract rather than a failure.
   s = f.NvVFX_SetU32(handle_, maxine::vfx::NVVFX_TEMPORAL,
                      cfg_.temporal ? 1u : 0u);
-  if (s != maxine::NVCV_SUCCESS) {
+  if (s != maxine::NVCV_SUCCESS && s != maxine::NVCV_ERR_SELECTOR) {
     if (error)
       *error =
           "NvVFX_SetU32(temporal) failed: " + StatusToString(vfx_, nvcv_, s);

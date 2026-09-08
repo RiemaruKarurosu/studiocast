@@ -22,6 +22,9 @@ using CUstream = CUstream_st *;
 using NvCV_Status = int32_t;
 inline constexpr NvCV_Status NVCV_SUCCESS = 0;
 
+// The given parameter selector and type is not valid in this effect filter.
+inline constexpr NvCV_Status NVCV_ERR_SELECTOR = -5;
+
 // The format of pixels in an image.
 // Values are part of the ABI.
 enum NvCVImage_PixelFormat : uint32_t {
