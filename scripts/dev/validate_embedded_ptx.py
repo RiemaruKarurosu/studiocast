@@ -279,11 +279,37 @@ def nvcc_path() -> str | None:
     return shutil.which("nvcc")
 
 
+def unsupported_arch(nvcc: str, args: tuple[str, ...]) -> str | None:
+    """Return the -arch value this nvcc cannot target, if any.
+
+    The embedded PTX is pinned to a specific virtual architecture. Newer CUDA
+    toolkits drop older ones (CUDA 13 removed everything below compute_75), so
+    a toolkit that cannot target the pinned arch says nothing about whether the
+    checked-in PTX is stale.
+    """
+    arch = next((a.split("=", 1)[1] for a in args if a.startswith("-arch=")), None)
+    if arch is None:
+        return None
+
+    result = subprocess.run(
+        [nvcc, "--list-gpu-arch"], text=True, capture_output=True
+    )
+    if result.returncode != 0:
+        return None
+
+    supported = set(result.stdout.split())
+    return None if arch in supported else arch
+
+
 def compile_sources(root: Path, nvcc: str, tmp: Path) -> tuple[int, dict[tuple[str, tuple[str, ...]], str]]:
     failures = 0
     generated: dict[tuple[str, tuple[str, ...]], str] = {}
     unique_sources = sorted({(m.cu_source, m.nvcc_args) for m in MODULES})
     for source, args in unique_sources:
+        arch = unsupported_arch(nvcc, args)
+        if arch is not None:
+            print(f"[SKIP] {source}: this nvcc cannot target {arch}")
+            continue
         out_name = source.replace("/", "_").replace(".", "_") + ".ptx"
         out_path = tmp / out_name
         cmd = [nvcc, *args, source, "-o", str(out_path)]
