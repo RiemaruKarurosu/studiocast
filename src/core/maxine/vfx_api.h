@@ -10,31 +10,37 @@
 
 namespace studiocast::maxine::vfx {
 
-// Effect selector strings (from VFX docs; used with NvVFX_CreateEffect).
-inline constexpr const char *NVVFX_FX_GREEN_SCREEN = "Green Screen";
-inline constexpr const char *NVVFX_FX_BGBLUR = "Background Blur";
+// Effect selector strings, as defined by the SDK headers:
+// features/nvvfxgreenscreen/include/nvVFXGreenScreen.h and
+// features/nvvfxbackgroundblur/include/nvVFXBackgroundBlur.h.
+//
+// These are NOT the names used in the user guide ("Green Screen",
+// "Background Blur"): those are display names, and passing them to
+// NvVFX_CreateEffect fails with NVCV_ERR_UNIMPLEMENTED.
+inline constexpr const char *NVVFX_FX_GREEN_SCREEN = "GreenScreen";
+inline constexpr const char *NVVFX_FX_BGBLUR = "BackgroundBlur";
 inline constexpr const char *NVVFX_FX_DENOISING = "Denoising";
 inline constexpr const char *NVVFX_FX_TRANSFER = "Transfer";
 
-// Parameter selector strings (from VFX docs; used with NvVFX_Set*/Get*).
-inline constexpr const char *NVVFX_MODEL_DIRECTORY = "modelDir";
-inline constexpr const char *NVVFX_CUDA_STREAM = "cudaStream";
-inline constexpr const char *NVVFX_STRENGTH = "strength";
-inline constexpr const char *NVVFX_MODE = "mode";
-inline constexpr const char *NVVFX_TEMPORAL = "temporal";
-inline constexpr const char *NVVFX_STATE = "state";
+// Parameter selector strings, as defined by include/nvVideoEffects.h.
+inline constexpr const char *NVVFX_MODEL_DIRECTORY = "ModelDir";
+inline constexpr const char *NVVFX_CUDA_STREAM = "CudaStream";
+inline constexpr const char *NVVFX_STRENGTH = "Strength";
+inline constexpr const char *NVVFX_MODE = "Mode";
+inline constexpr const char *NVVFX_TEMPORAL = "Temporal";
+inline constexpr const char *NVVFX_STATE = "State";
 
 // Some effects expose state buffer sizing through a U32 parameter.
 // The exact selector is effect/version dependent; callers may probe
 // alternatives.
-inline constexpr const char *NVVFX_STATE_SIZE = "stateSize";
+inline constexpr const char *NVVFX_STATE_SIZE = "StateSize";
 inline constexpr const char *NVVFX_STATE_SIZE_BYTES = "stateSizeBytes";
 
-inline constexpr const char *NVVFX_INPUT_IMAGE = "srcImage";
-// Matte / mask input (Au8). Some Maxine/VFX builds use different selector
-// strings; callers may probe alternatives if needed.
-inline constexpr const char *NVVFX_INPUT_MATTE = "srcMatte";
-inline constexpr const char *NVVFX_OUTPUT_IMAGE = "dstImage";
+inline constexpr const char *NVVFX_INPUT_IMAGE = "SrcImage0";
+// Matte / mask input (Au8). Green Screen writes the matte to the destination
+// image, so consumers that take a matte read it as a second source image.
+inline constexpr const char *NVVFX_INPUT_MATTE = "SrcImage1";
+inline constexpr const char *NVVFX_OUTPUT_IMAGE = "DstImage0";
 
 // Runtime-loaded NvVFX API.
 //
