@@ -183,10 +183,24 @@ bool Rgb24ToYuyvLibyuv(const std::uint8_t *src, int width, int height,
   const int src_stride_i = static_cast<int>(src_stride);
   const int dst_stride_i = static_cast<int>(dst_stride);
   const int argb_stride_i = static_cast<int>(argb_stride);
-  return libyuv::RAWToARGB(src, src_stride_i, scratch, argb_stride_i, width,
-                           height) == 0 &&
-         libyuv::ARGBToYUY2(scratch, argb_stride_i, dst, dst_stride_i, width,
-                            height) == 0;
+  if (libyuv::RAWToARGB(src, src_stride_i, scratch, argb_stride_i, width,
+                        height) != 0 ||
+      libyuv::ARGBToYUY2(scratch, argb_stride_i, dst, dst_stride_i, width,
+                         height) != 0) {
+    return false;
+  }
+
+  // ARGBToYUY2 zeroes the second luma of the trailing macropixel on odd widths;
+  // the scalar reference duplicates the last real sample instead.
+  if (width % 2 != 0) {
+    const std::size_t tail = static_cast<std::size_t>(width - 1) * 2u;
+    for (int y = 0; y < height; ++y) {
+      std::uint8_t *row = dst + static_cast<std::size_t>(y) * dst_stride;
+      row[tail + 2] = row[tail];
+    }
+  }
+
+  return true;
 #else
   (void)src;
   (void)width;
