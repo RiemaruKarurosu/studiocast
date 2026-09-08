@@ -272,7 +272,8 @@ read_os_release() {
   OS_ID_LIKE=""
   OS_PRETTY_NAME=""
 
-  if [[ -f /etc/os-release ]]; then
+  local os_release_file="${STUDIOCAST_OS_RELEASE_FILE:-/etc/os-release}"
+  if [[ -f "${os_release_file}" ]]; then
     local key value
     while IFS='=' read -r key value || [[ -n "${key:-}" ]]; do
       case "${key}" in
@@ -292,7 +293,7 @@ read_os_release() {
         ID_LIKE) OS_ID_LIKE="${value}" ;;
         PRETTY_NAME) OS_PRETTY_NAME="${value}" ;;
       esac
-    done < /etc/os-release
+    done < "${os_release_file}"
   fi
 
   OS_BASE_ID=""
@@ -338,9 +339,28 @@ read_os_release() {
       *) OS_BASE_VERSION_ID="" ;;
     esac
     OS_MAPPING_NOTE="Ubuntu-family distro mapped through UBUNTU_CODENAME=${OS_UBUNTU_CODENAME}."
+  elif [[ "${OS_ID}" == "fedora" ]]; then
+    OS_BASE_ID="fedora"
+    OS_BASE_VERSION_ID="${OS_VERSION_ID}"
+    OS_MAPPING_NOTE="Native Fedora release."
+  elif [[ "${OS_ID}" == "nobara" ]]; then
+    OS_BASE_ID="fedora"
+    OS_BASE_VERSION_ID="${OS_VERSION_ID}"
+    OS_MAPPING_NOTE="Nobara ${OS_VERSION_ID} mapped to the matching Fedora base."
+  elif [[ "${id_like_padded}" == *" fedora "* ]]; then
+    OS_BASE_ID="fedora"
+    OS_BASE_VERSION_ID="${OS_VERSION_ID}"
+    OS_MAPPING_NOTE="Fedora-family distro mapped through ID_LIKE=${OS_ID_LIKE}."
   fi
 
-  if [[ "${OS_BASE_ID}" == "ubuntu" ]]; then
+  if [[ "${OS_BASE_ID}" == "fedora" ]]; then
+    if [[ "${OS_BASE_VERSION_ID}" =~ ^[0-9]+$ ]] && (( OS_BASE_VERSION_ID >= 40 )); then
+      OS_SUPPORTED=1
+      OS_SUPPORT_REASON="Supported Fedora ${OS_BASE_VERSION_ID} base."
+    else
+      OS_SUPPORT_REASON="Detected Fedora-family system, but only Fedora 40 and newer bases are supported by the installer."
+    fi
+  elif [[ "${OS_BASE_ID}" == "ubuntu" ]]; then
     case "${OS_BASE_VERSION_ID}:${OS_BASE_CODENAME}" in
       22.04:*|*:jammy)
         OS_SUPPORTED=1
@@ -368,7 +388,7 @@ VERSION_ID: ${OS_VERSION_ID:-unknown}
 VERSION_CODENAME: ${OS_VERSION_CODENAME:-unknown}
 UBUNTU_CODENAME: ${OS_UBUNTU_CODENAME:-unknown}
 ID_LIKE: ${OS_ID_LIKE:-unknown}
-Ubuntu base: ${OS_BASE_VERSION_ID:-unknown} (${OS_BASE_CODENAME:-unknown})
+Mapped base: ${OS_BASE_ID:-unknown} ${OS_BASE_VERSION_ID:-unknown} (${OS_BASE_CODENAME:-unknown})
 Supported: $([[ "${OS_SUPPORTED}" -eq 1 ]] && echo yes || echo no)
 Reason: ${OS_SUPPORT_REASON}
 Mapping: ${OS_MAPPING_NOTE:-none}

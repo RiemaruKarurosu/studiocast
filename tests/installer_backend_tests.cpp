@@ -129,6 +129,54 @@ std::string BackendCommand(const ScopedTempDir &root,
   return command;
 }
 
+bool TestDetectOsMapsFedoraFamilyBases() {
+  ScopedTempDir temp("studiocast-installer-backend-detect-os");
+  if (!Expect(temp.ok(), temp.error().c_str()))
+    return false;
+
+  const fs::path backend = fs::path(STUDIOCAST_SOURCE_DIR) / "installer" /
+                           "backend" / "studiocast-installer-backend";
+
+  struct Case {
+    const char *name;
+    const char *os_release;
+    const char *expected_base;
+    const char *expected_supported;
+  };
+
+  const Case cases[] = {
+      {"nobara-44", "ID=nobara\nVERSION_ID=44\nID_LIKE=\"rhel centos fedora\"\n",
+       "\"base_id\":\"fedora\"", "\"supported\":true"},
+      {"fedora-40", "ID=fedora\nVERSION_ID=40\n", "\"base_id\":\"fedora\"",
+       "\"supported\":true"},
+      {"fedora-39", "ID=fedora\nVERSION_ID=39\n", "\"base_id\":\"fedora\"",
+       "\"supported\":false"},
+      {"ubuntu-noble", "ID=ubuntu\nVERSION_ID=24.04\nVERSION_CODENAME=noble\n",
+       "\"base_id\":\"ubuntu\"", "\"supported\":true"},
+  };
+
+  bool ok = true;
+  for (const Case &c : cases) {
+    const fs::path os_release = temp.path() / c.name;
+    std::ofstream file(os_release);
+    if (!Expect(file.good(), "failed to write fake os-release"))
+      return false;
+    file << c.os_release;
+    file.close();
+
+    const std::string command = "STUDIOCAST_OS_RELEASE_FILE=" +
+                                ShellQuote(os_release.string()) + " " +
+                                ShellQuote(backend.string()) +
+                                " detect-os --json";
+    const auto result = studiocast::util::ExecCapture(command);
+    ok = Expect(result.exit_code == 0, "detect-os should exit successfully") &&
+         ok;
+    ok = ExpectContains(c.name, result.stdout_str, c.expected_base) && ok;
+    ok = ExpectContains(c.name, result.stdout_str, c.expected_supported) && ok;
+  }
+  return ok;
+}
+
 bool TestRepairPlanIncludesDefaultOpenBackendConfigureFlags() {
   ScopedTempDir temp("studiocast-installer-backend-plan");
   if (!Expect(temp.ok(), temp.error().c_str()))
@@ -388,6 +436,7 @@ bool TestUserServiceDryRunRestartsServiceAfterInstall() {
 
 int main() {
   bool ok = true;
+  ok = TestDetectOsMapsFedoraFamilyBases() && ok;
   ok = TestRepairPlanIncludesDefaultOpenBackendConfigureFlags() && ok;
   ok = TestRepairPlanCanDisableOpenBackendConfigureFlags() && ok;
   ok = TestRepairDryRunIncludesOpenBackendConfigureFlags() && ok;

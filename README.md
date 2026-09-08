@@ -38,8 +38,8 @@ Most Linux broadcast-effect projects prove one cool trick or half bake the broad
 ## Project status
 
 StudioCast is an early-preview Linux project. It is usable for testing on
-Ubuntu 22.04 and 24.04, with a source-build flow and an installer wizard target
-for release packaging. Packaging, model installation, hardware behavior, and
+Ubuntu 22.04 and 24.04 and on Fedora 40+ bases such as Nobara, with a
+source-build flow and an installer wizard target for release packaging. Packaging, model installation, hardware behavior, and
 some effects are still evolving.
 
 Known caveats:
@@ -54,6 +54,7 @@ Known caveats:
 ## Requirements
 
 - Ubuntu 22.04 or 24.04, or a close Ubuntu-family desktop distribution.
+- Or Fedora 40+, including Fedora-family distributions such as Nobara.
 - A V4L2-compatible physical camera for camera input.
 - `v4l2loopback` for the StudioCast virtual camera.
 - A PulseAudio-compatible audio stack with `pactl` for virtual audio routing.

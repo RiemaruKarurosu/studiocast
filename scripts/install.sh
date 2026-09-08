@@ -202,7 +202,7 @@ run_full() {
     fi
     if [[ "${ort_ok}" -ne 1 ]]; then
       echo "[install] ERROR: ONNX Runtime not found." >&2
-      echo "[install]        Fix (Ubuntu-family):" >&2
+      echo "[install]        Fix:" >&2
       echo "[install]          ./scripts/setup.sh --deps" >&2
       failures=1
     fi
@@ -213,7 +213,7 @@ run_full() {
       :
     else
       echo "[install] ERROR: v4l2loopback kernel module not available (modinfo v4l2loopback failed)." >&2
-      echo "[install]        Fix (Ubuntu-family):" >&2
+      echo "[install]        Fix:" >&2
       echo "[install]          ./scripts/setup.sh --v4l2loopback" >&2
       echo "[install]        Or (more explicit):" >&2
       echo "[install]          ./scripts/setup/v4l2loopback.sh --install" >&2
@@ -232,7 +232,7 @@ run_full() {
     # PulseAudio utils (or PipeWire pulse shim) are used for diagnostics and common setups.
     if ! have_cmd pactl; then
       echo "[install] WARN: pactl not found. Audio routing/diagnostics may be limited." >&2
-      echo "[install]       Fix (Ubuntu-family): ./scripts/setup.sh --deps" >&2
+      echo "[install]       Fix: ./scripts/setup.sh --deps" >&2
     fi
 
     if [[ "${failures}" -ne 0 ]]; then

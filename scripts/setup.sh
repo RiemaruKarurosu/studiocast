@@ -12,6 +12,7 @@ This script dispatches to the appropriate distro-family helper.
 
 Currently supported:
   - Ubuntu-family (Ubuntu, Linux Mint, Pop!_OS, etc.)
+  - Fedora-family (Fedora, Nobara, RHEL/CentOS-like)
 
 Examples:
   ./scripts/setup.sh --deps --v4l2loopback --load-loopback --persist-loopback
@@ -35,14 +36,16 @@ if [[ -f /etc/os-release ]]; then
   like="${ID_LIKE:-}"
   if [[ "$id" == "ubuntu" || "$id" == "linuxmint" || "$like" == *ubuntu* ]]; then
     distro_family="ubuntu"
+  elif [[ "$id" == "fedora" || "$id" == "nobara" || "$like" == *fedora* || "$like" == *rhel* ]]; then
+    distro_family="fedora"
   fi
 fi
 
 if [[ -z "$distro_family" ]]; then
   echo "[setup] ERROR: Unsupported distro for helper script." >&2
-  echo "[setup] This repo helper currently supports Ubuntu-family distributions only." >&2
+  echo "[setup] This repo helper currently supports Ubuntu-family and Fedora-family distributions." >&2
   echo "[setup] You can still run distro-specific scripts directly under: scripts/setup/" >&2
   exit 2
 fi
 
-exec "${SCRIPT_DIR}/setup/ubuntu.sh" "$@"
+exec "${SCRIPT_DIR}/setup/${distro_family}.sh" "$@"

@@ -1,4 +1,4 @@
-# Setup / Install (Ubuntu 22.04+)
+# Setup / Install (Ubuntu 22.04+ / Fedora 40+)
 
 This repo supports both a manual source-build flow and a StudioCast installer
 wizard target. The GUI installer is the polished user path for releases; the
@@ -76,6 +76,9 @@ Supported installer OS bases:
 - Other Ubuntu-family distributions may also pass installer checks when
   `/etc/os-release` declares `ID_LIKE=ubuntu` and exposes
   `UBUNTU_CODENAME=jammy` or `UBUNTU_CODENAME=noble`.
+- Fedora 40 and newer, including Fedora-family distributions such as Nobara
+  that declare `ID_LIKE=fedora`. `./scripts/setup.sh` dispatches these to
+  `scripts/setup/fedora.sh`, which uses `dnf` instead of `apt`.
 
 Unsupported distros fail clearly with the detected `/etc/os-release` fields and
 should use the manual source-build flow below.
@@ -109,7 +112,8 @@ The setup helper prefers a kernel-provided/prebuilt v4l2loopback module and only
 MJPEG decode uses **libjpeg-turbo** (via CMake `FindJPEG`). If you are installing dependencies manually:
 
 ```bash
-sudo apt install libjpeg-turbo8 libjpeg-turbo8-dev
+sudo apt install libjpeg-turbo8 libjpeg-turbo8-dev   # Ubuntu-family
+sudo dnf install libjpeg-turbo-devel                 # Fedora-family
 ```
 
 Verify:
@@ -142,6 +146,22 @@ replacing the upstream source copy, hold it:
 ```bash
 sudo apt-mark hold v4l2loopback-dkms
 ```
+
+On Fedora-family systems the equivalent fallback is `akmod-v4l2loopback`, from
+RPM Fusion free on Fedora or from Terra on Nobara. Nobara kernels already ship
+`v4l2loopback` in-tree, so the helper skips the akmod path there. If the akmod
+package cannot be found, enable RPM Fusion free first:
+
+```bash
+sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+```
+
+Fedora also packages `onnxruntime-devel` with a CMake config package, so the
+CPU flavor needs no `/opt` bootstrap. That build has no CUDA execution
+provider: `--onnxruntime-flavor gpu` still installs the upstream tarball, and an
+installed `onnxruntime-devel` will shadow it until you remove that package.
+`dlib` is not packaged for current Fedora releases, so Open Video Eye Contact
+stays unavailable there unless you build dlib yourself.
 
 ## 2) Build StudioCast
 

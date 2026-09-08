@@ -645,7 +645,8 @@ bool IntroPage::validatePage() {
 CompatibilityPage::CompatibilityPage(QWidget *parent) : QWizardPage(parent) {
   setTitle(QStringLiteral("OS Compatibility"));
   setSubTitle(QStringLiteral("The installer supports Ubuntu 22.04, Ubuntu "
-                             "24.04, and practical Linux Mint mappings."));
+                             "24.04, practical Linux Mint mappings, and "
+                             "Fedora 40+ bases such as Nobara."));
 
   auto *layout = new QVBoxLayout(this);
   statusLabel_ = new QLabel(this);
@@ -695,7 +696,9 @@ void CompatibilityPage::initializePage() {
           QStringLiteral("\n");
   text += QStringLiteral("ID_LIKE: ") +
           jsonString(os, QStringLiteral("id_like")) + QStringLiteral("\n");
-  text += QStringLiteral("Mapped Ubuntu base: ") +
+  text += QStringLiteral("Mapped base: ") +
+          jsonString(os, QStringLiteral("base_id"), QStringLiteral("unknown")) +
+          QStringLiteral(" ") +
           jsonString(os, QStringLiteral("base_version_id"),
                      QStringLiteral("unknown")) +
           QStringLiteral(" / ") +

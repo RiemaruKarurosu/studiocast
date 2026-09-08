@@ -16,14 +16,14 @@ Usage:
   scripts/setup/v4l2loopback.sh [options]
 
 Options:
-  --install             Install v4l2loopback tools/module support via apt.
+  --install             Install v4l2loopback tools/module support (apt or dnf).
   --load                Load the v4l2loopback module now (creates /dev/videoN).
   --persist             Persist the module load/options across reboot.
   --video-nr N          Video device number (default: 10).
   --devices N           Number of loopback devices (default: 1).
   --label TEXT          Device label (default: "StudioCast Camera").
   --exclusive-caps 0|1  exclusive_caps setting (default: 1).
-  -y, --yes             Assume yes for apt installs.
+  -y, --yes             Assume yes for package installs.
   -h, --help            Show help.
 
 Examples:
@@ -57,9 +57,11 @@ module_available() {
 print_upstream_dkms_hint() {
   cat >&2 <<'EOF'
 [v4l2loopback] v4l2loopback install failed.
-[v4l2loopback] If the failure was during DKMS module build on a newer kernel,
+[v4l2loopback] If the failure was during DKMS/akmod module build on a newer kernel,
 [v4l2loopback] install v4l2loopback from upstream source and retry with
 [v4l2loopback] --load/--persist. See docs/SETUP.md for the DKMS fallback.
+[v4l2loopback] On Fedora-family systems akmod-v4l2loopback comes from RPM Fusion free:
+[v4l2loopback]   sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
 EOF
 }
 
@@ -77,6 +79,38 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown argument: $1"; usage; exit 2 ;;
   esac
 done
+
+install_dnf() {
+  local args=()
+  if [[ "$YES" -eq 1 ]]; then args+=("-y"); fi
+
+  # Nobara and some Fedora spins ship v4l2loopback in the stock kernel.
+  if module_available; then
+    echo "[v4l2loopback] Found kernel-provided v4l2loopback module; skipping akmod."
+    sudo dnf install "${args[@]}" v4l2loopback v4l-utils
+    return 0
+  fi
+
+  if ! sudo dnf install "${args[@]}" akmod-v4l2loopback v4l2loopback v4l-utils \
+    "kernel-devel-$(uname -r)"; then
+    print_upstream_dkms_hint
+    exit 1
+  fi
+
+  command -v akmods >/dev/null 2>&1 && sudo akmods --kernels "$(uname -r)" || true
+  sudo depmod -a || true
+
+  if ! module_available; then
+    print_upstream_dkms_hint
+    exit 1
+  fi
+}
+
+if [[ "$DO_INSTALL" -eq 1 ]] && ! command -v apt >/dev/null 2>&1; then
+  echo "[v4l2loopback] Installing packages..."
+  install_dnf
+  DO_INSTALL=0
+fi
 
 if [[ "$DO_INSTALL" -eq 1 ]]; then
   echo "[v4l2loopback] Installing packages..."

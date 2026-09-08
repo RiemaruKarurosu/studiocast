@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# StudioCast Ubuntu-family setup helper.
+# StudioCast Fedora-family setup helper (Fedora, Nobara, RHEL/CentOS-like).
 #
 # This script is invoked via ./scripts/setup.sh.
 # It installs build/runtime prerequisites and configures v4l2loopback.
@@ -13,7 +13,7 @@ Usage:
 
 Options:
   --deps                 Install build/runtime deps (Qt/CMake/Ninja/etc + Pulse utils).
-  --v4l2loopback          Ensure v4l2loopback module is available (kernel module or DKMS).
+  --v4l2loopback          Ensure v4l2loopback module is available (kernel module or akmod).
   --load-loopback         Load v4l2loopback now (creates /dev/videoN).
   --persist-loopback      Persist module load/options across reboot.
 
@@ -30,7 +30,7 @@ Options:
   --build-type TYPE       CMake build type (default: Debug).
 
   --maxine                Run Maxine helper (see scripts/setup/maxine.sh).
-  -y, --yes               Assume yes for apt installs.
+  -y, --yes               Assume yes for dnf installs.
   -h, --help              Show help.
 
 Examples:
@@ -90,13 +90,12 @@ require_cmd() {
 # shellcheck source=../_lib/onnxruntime.sh
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../_lib" && pwd)/onnxruntime.sh"
 
-APT_ARGS=()
-APT_GET_ARGS=()
+DNF="dnf"
+command -v dnf >/dev/null 2>&1 || DNF="yum"
+DNF_ARGS=()
 
-apt_install() {
-  local pkgs=("$@")
-  sudo apt update
-  sudo apt install "${APT_ARGS[@]}" "${pkgs[@]}"
+dnf_install() {
+  sudo "${DNF}" install "${DNF_ARGS[@]}" "$@"
 }
 
 have_module() {
@@ -104,94 +103,59 @@ have_module() {
   modinfo v4l2loopback >/dev/null 2>&1
 }
 
-ensure_kernel_extras() {
-  # On some installs the module may live in linux-modules-extra for the current kernel.
-  # Installing it is safe even if already present.
-  apt_install "linux-modules-extra-$(uname -r)" || true
-}
-
-pkg_status() {
-  # Print dpkg status keyword for a package, or empty if unknown.
-  # Examples: install ok installed, install ok half-configured, deinstall ok config-files, etc.
-  dpkg-query -W -f='${Status}' "$1" 2>/dev/null || true
-}
-
-is_pkg_installedish() {
-  # True if package is installed OR half-installed/half-configured/unpacked (i.e., can break apt).
-  local st
-  st="$(pkg_status "$1")"
-  [[ "$st" == install\ ok\ installed ]] || \
-  [[ "$st" == install\ ok\ unpacked ]] || \
-  [[ "$st" == install\ ok\ half-configured ]] || \
-  [[ "$st" == install\ ok\ half-installed ]] || \
-  [[ "$st" == install\ ok\ triggers-awaited ]] || \
-  [[ "$st" == install\ ok\ triggers-pending ]]
-}
-
-fix_broken_dkms_if_newer_kernel_module_exists() {
-  # If v4l2loopback exists in the kernel AND v4l2loopback-dkms is installed-ish,
-  # purge it to avoid dpkg repeatedly failing on future apt installs.
-  if have_module; then
-    if is_pkg_installedish v4l2loopback-dkms; then
-      log "Detected in-kernel v4l2loopback + v4l2loopback-dkms in dpkg state: '$(pkg_status v4l2loopback-dkms)'."
-      log "Purging v4l2loopback-dkms (and dkms) to avoid version conflicts..."
-
-      # Use apt-get here for more predictable noninteractive behavior.
-      sudo apt-get update
-      sudo apt-get remove --purge "${APT_GET_ARGS[@]}" v4l2loopback-dkms dkms || true
-      sudo apt-get -f install "${APT_GET_ARGS[@]}" || true
-      sudo dpkg --configure -a || true
-
-      # If something still lingers, try one more time.
-      if is_pkg_installedish v4l2loopback-dkms; then
-        log "v4l2loopback-dkms still present after purge attempt; trying again..."
-        sudo apt-get remove --purge "${APT_GET_ARGS[@]}" v4l2loopback-dkms dkms || true
-        sudo apt-get -f install "${APT_GET_ARGS[@]}" || true
-        sudo dpkg --configure -a || true
-      fi
-
-      if is_pkg_installedish v4l2loopback-dkms; then
-        echo "[setup] ERROR: Could not remove v4l2loopback-dkms cleanly."
-        echo "[setup] Please run manually:"
-        echo "  sudo apt remove --purge v4l2loopback-dkms dkms"
-        echo "  sudo apt -f install"
-        echo "  sudo dpkg --configure -a"
-        exit 1
-      fi
-
-      log "DKMS conflict cleaned up."
+ensure_onnxruntime_fedora() {
+  # Fedora ships onnxruntime-devel with a CMake config package, so CMake picks it
+  # up with no /opt bootstrap. That build is CPU-only, so the gpu flavor still
+  # needs the upstream tarball for the CUDA execution provider.
+  if [[ "${ORT_FLAVOR}" == "cpu" ]]; then
+    if dnf_install onnxruntime-devel; then
+      log "ONNX Runtime installed from distro packages (CPU execution provider only)."
+      return 0
     fi
+    log "onnxruntime-devel unavailable from ${DNF}; falling back to the upstream tarball."
+  elif rpm -q onnxruntime-devel >/dev/null 2>&1; then
+    log "WARNING: onnxruntime-devel (CPU-only) is installed and its CMake config"
+    log "         takes priority over the upstream CUDA build. Remove it with"
+    log "         'sudo ${DNF} remove onnxruntime-devel' if Open CUDA stays unavailable."
+  fi
+
+  ensure_onnxruntime_available
+
+  if [[ "${ORT_FLAVOR}" == "gpu" ]]; then
+    log "Note: the CUDA execution provider also needs a CUDA runtime + cuDNN,"
+    log "      which Fedora does not package. See docs/open_source_video_models_install.md."
   fi
 }
 
 ensure_v4l2loopback_available() {
   log "Ensuring v4l2loopback availability..."
 
-  # If kernel has it, don't touch DKMS.
+  # Nobara and some Fedora spins ship v4l2loopback in the stock kernel.
   if have_module; then
-    log "v4l2loopback module is available for this kernel (no DKMS needed)."
-    # Ensure runtime tools are present; modules-extra is harmless and may be required on minimal installs.
-    apt_install "linux-modules-extra-$(uname -r)" v4l2loopback-utils v4l-utils || true
+    log "v4l2loopback module is available for this kernel (no akmod needed)."
+    dnf_install v4l2loopback v4l-utils || true
     return 0
   fi
 
-  # Try installing modules-extra for this kernel, then re-check.
-  ensure_kernel_extras
-  if have_module; then
-    log "v4l2loopback became available after installing linux-modules-extra."
-    apt_install v4l2loopback-utils v4l-utils || true
-    return 0
+  # akmod fallback: rebuilds the module for every installed kernel.
+  # Provided by RPM Fusion free (Fedora) or Terra (Nobara).
+  log "v4l2loopback not found in kernel modules; installing akmod fallback."
+  dnf_install akmod-v4l2loopback v4l2loopback v4l-utils \
+    "kernel-devel-$(uname -r)"
+
+  if command -v akmods >/dev/null 2>&1; then
+    sudo akmods --kernels "$(uname -r)" || true
   fi
-
-  # DKMS fallback only if not present.
-  log "v4l2loopback not found in kernel modules; installing DKMS fallback."
-  apt_install dkms "linux-headers-$(uname -r)" v4l2loopback-dkms v4l2loopback-utils v4l-utils
+  sudo depmod -a || true
 
   if have_module; then
-    log "v4l2loopback is now available (DKMS)."
+    log "v4l2loopback is now available (akmod)."
   else
-    echo "[setup] ERROR: v4l2loopback still not available after DKMS install."
-    echo "[setup] Check dkms status: dkms status"
+    echo "[setup] ERROR: v4l2loopback still not available after akmod install."
+    echo "[setup] The akmod build may need a reboot into a matching kernel."
+    echo "[setup] Check: akmods --force --kernels \$(uname -r) && sudo depmod -a"
+    echo "[setup] If akmod-v4l2loopback was not found, enable RPM Fusion free:"
+    echo "[setup]   sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-\$(rpm -E %fedora).noarch.rpm"
     exit 1
   fi
 }
@@ -260,39 +224,35 @@ fi
 if [[ -f /etc/os-release ]]; then
   # shellcheck disable=SC1091
   source /etc/os-release
-  if [[ "${ID:-}" != "ubuntu" ]]; then
-    log "Warning: tuned for Ubuntu. Detected ID=${ID:-unknown}."
-  else
-    log "Detected Ubuntu ${VERSION_ID:-unknown} (${VERSION_CODENAME:-unknown})."
-  fi
+  log "Detected ${PRETTY_NAME:-unknown} (ID=${ID:-unknown}, VERSION_ID=${VERSION_ID:-unknown})."
 fi
 
 if [[ "$YES" -eq 1 ]]; then
-  APT_ARGS+=("-y")
-  # apt-get flags for noninteractive scripting
-  APT_GET_ARGS+=("-y")
+  DNF_ARGS+=("-y")
 fi
-
-# IMPORTANT: heal dpkg state before any apt installs.
-fix_broken_dkms_if_newer_kernel_module_exists
 
 if [[ "$DO_DEPS" -eq 1 ]]; then
   log "Installing build/runtime dependencies..."
-  apt_install \
-    build-essential cmake ninja-build pkg-config \
+  dnf_install \
+    gcc-c++ make cmake ninja-build pkgconf-pkg-config \
     git curl ca-certificates tar \
-    qt6-base-dev qt6-base-dev-tools qt6-tools-dev qt6-tools-dev-tools \
-    qtbase5-dev \
-    libxkbcommon-dev \
-    libpulse-dev libpulse0 pulseaudio-utils \
-    clang clang-format clang-tidy \
+    qt6-qtbase-devel qt6-qtbase-gui qt6-qttools-devel \
+    libxkbcommon-devel \
+    pulseaudio-libs-devel pulseaudio-utils \
+    clang clang-tools-extra \
     v4l-utils \
-    libblas-dev liblapack-dev \
-    libdlib-dev libsqlite3-dev \
-    libjpeg-turbo8 libjpeg-turbo8-dev \
-    libpng-dev
+    blas-devel lapack-devel \
+    sqlite-devel \
+    libjpeg-turbo-devel libpng-devel \
+    libyuv-devel
 
-  ensure_onnxruntime_available
+  # dlib is optional (Open Video Eye Contact landmarks) and is not packaged in
+  # current Fedora repos. Install it yourself and pass -Ddlib_DIR=... if wanted.
+  if ! ldconfig -p 2>/dev/null | grep -q 'libdlib\.so'; then
+    log "Note: dlib not found. Open Video Eye Contact stays unavailable unless you build dlib manually."
+  fi
+
+  ensure_onnxruntime_fedora
 fi
 
 if [[ "$DO_V4L2" -eq 1 ]]; then
