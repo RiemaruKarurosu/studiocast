@@ -87,8 +87,11 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || { echo "[setup] Missing required command: $1"; exit 1; }
 }
 
+_studiocast_lib="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../_lib" && pwd)"
 # shellcheck source=../_lib/onnxruntime.sh
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../_lib" && pwd)/onnxruntime.sh"
+source "${_studiocast_lib}/onnxruntime.sh"
+# shellcheck source=../_lib/v4l2loopback.sh
+source "${_studiocast_lib}/v4l2loopback.sh"
 
 APT_ARGS=()
 APT_GET_ARGS=()
@@ -97,11 +100,6 @@ apt_install() {
   local pkgs=("$@")
   sudo apt update
   sudo apt install "${APT_ARGS[@]}" "${pkgs[@]}"
-}
-
-have_module() {
-  # Does the module exist for this running kernel?
-  modinfo v4l2loopback >/dev/null 2>&1
 }
 
 ensure_kernel_extras() {
@@ -194,35 +192,6 @@ ensure_v4l2loopback_available() {
     echo "[setup] Check dkms status: dkms status"
     exit 1
   fi
-}
-
-load_v4l2loopback_now() {
-  require_cmd modprobe
-  log "Loading v4l2loopback now (video_nr=${VIDEO_NR}, label=${LABEL}, exclusive_caps=${EXCLUSIVE_CAPS})..."
-  sudo modprobe -r v4l2loopback 2>/dev/null || true
-  sudo modprobe v4l2loopback "video_nr=${VIDEO_NR}" "card_label=${LABEL}" "exclusive_caps=${EXCLUSIVE_CAPS}"
-  log "Loaded. Devices:"
-  if command -v v4l2-ctl >/dev/null 2>&1; then
-    v4l2-ctl --list-devices || true
-  fi
-  ls -l "/dev/video${VIDEO_NR}" 2>/dev/null || true
-}
-
-persist_v4l2loopback() {
-  log "Persisting v4l2loopback across reboot..."
-  echo "v4l2loopback" | sudo tee /etc/modules-load.d/v4l2loopback.conf >/dev/null
-
-  cat <<EOF | sudo tee /etc/modprobe.d/studiocast-v4l2loopback.conf >/dev/null
-# StudioCast v4l2loopback options
-options v4l2loopback video_nr=${VIDEO_NR} card_label="${LABEL}" exclusive_caps=${EXCLUSIVE_CAPS}
-EOF
-
-  log "Wrote:"
-  log "  /etc/modules-load.d/v4l2loopback.conf"
-  log "  /etc/modprobe.d/studiocast-v4l2loopback.conf"
-  log "You can verify after reboot with:"
-  log "  modinfo v4l2loopback | head"
-  log "  ls -l /dev/video${VIDEO_NR}"
 }
 
 while [[ $# -gt 0 ]]; do

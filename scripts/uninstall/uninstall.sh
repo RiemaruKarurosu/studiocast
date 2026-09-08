@@ -178,7 +178,17 @@ greedy_remove_system_onnxruntime_bootstrap() {
   # Installed by scripts/setup.sh --deps (scripts/setup/ubuntu.sh).
   local ort_root="/opt/studiocast/onnxruntime"
   local ld_conf="/etc/ld.so.conf.d/studiocast-onnxruntime.conf"
-  local pc_file="/usr/local/lib/pkgconfig/onnxruntime.pc"
+  # The setup helper writes this wherever pkg-config actually searches, which
+  # is not /usr/local on Fedora-family systems.
+  local pc_file=""
+  local candidate
+  for candidate in $(pkg-config --variable pc_path pkg-config 2>/dev/null | tr ':' ' '); do
+    if [[ -f "${candidate}/onnxruntime.pc" ]]; then
+      pc_file="${candidate}/onnxruntime.pc"
+      break
+    fi
+  done
+  [[ -n "$pc_file" ]] || pc_file="/usr/local/lib/pkgconfig/onnxruntime.pc"
 
   if [[ -d "$ort_root" ]]; then
     log "Removing ONNX Runtime under: $ort_root"

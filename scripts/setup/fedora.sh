@@ -87,8 +87,11 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || { echo "[setup] Missing required command: $1"; exit 1; }
 }
 
+_studiocast_lib="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../_lib" && pwd)"
 # shellcheck source=../_lib/onnxruntime.sh
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../_lib" && pwd)/onnxruntime.sh"
+source "${_studiocast_lib}/onnxruntime.sh"
+# shellcheck source=../_lib/v4l2loopback.sh
+source "${_studiocast_lib}/v4l2loopback.sh"
 
 DNF="dnf"
 command -v dnf >/dev/null 2>&1 || DNF="yum"
@@ -96,11 +99,6 @@ DNF_ARGS=()
 
 dnf_install() {
   sudo "${DNF}" install "${DNF_ARGS[@]}" "$@"
-}
-
-have_module() {
-  # Does the module exist for this running kernel?
-  modinfo v4l2loopback >/dev/null 2>&1
 }
 
 ensure_onnxruntime_fedora() {
@@ -114,9 +112,17 @@ ensure_onnxruntime_fedora() {
     fi
     log "onnxruntime-devel unavailable from ${DNF}; falling back to the upstream tarball."
   elif rpm -q onnxruntime-devel >/dev/null 2>&1; then
-    log "WARNING: onnxruntime-devel (CPU-only) is installed and its CMake config"
-    log "         takes priority over the upstream CUDA build. Remove it with"
-    log "         'sudo ${DNF} remove onnxruntime-devel' if Open CUDA stays unavailable."
+    # find_package(onnxruntime CONFIG) resolves before pkg-config, so the RPM
+    # would silently win and the downloaded CUDA build would never be linked.
+    echo "[setup] ERROR: onnxruntime-devel is installed and ships a CMake config" >&2
+    echo "[setup]        package, which takes priority over the upstream CUDA build." >&2
+    echo "[setup]        Installing the gpu flavor now would download ~250MB that" >&2
+    echo "[setup]        CMake then ignores." >&2
+    echo "[setup]" >&2
+    echo "[setup] Pick one:" >&2
+    echo "[setup]   sudo ${DNF} remove onnxruntime-devel   # then re-run for the CUDA build" >&2
+    echo "[setup]   ./scripts/setup.sh --deps --onnxruntime-flavor cpu   # keep the distro build" >&2
+    exit 2
   fi
 
   ensure_onnxruntime_available
@@ -158,35 +164,6 @@ ensure_v4l2loopback_available() {
     echo "[setup]   sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-\$(rpm -E %fedora).noarch.rpm"
     exit 1
   fi
-}
-
-load_v4l2loopback_now() {
-  require_cmd modprobe
-  log "Loading v4l2loopback now (video_nr=${VIDEO_NR}, label=${LABEL}, exclusive_caps=${EXCLUSIVE_CAPS})..."
-  sudo modprobe -r v4l2loopback 2>/dev/null || true
-  sudo modprobe v4l2loopback "video_nr=${VIDEO_NR}" "card_label=${LABEL}" "exclusive_caps=${EXCLUSIVE_CAPS}"
-  log "Loaded. Devices:"
-  if command -v v4l2-ctl >/dev/null 2>&1; then
-    v4l2-ctl --list-devices || true
-  fi
-  ls -l "/dev/video${VIDEO_NR}" 2>/dev/null || true
-}
-
-persist_v4l2loopback() {
-  log "Persisting v4l2loopback across reboot..."
-  echo "v4l2loopback" | sudo tee /etc/modules-load.d/v4l2loopback.conf >/dev/null
-
-  cat <<EOF | sudo tee /etc/modprobe.d/studiocast-v4l2loopback.conf >/dev/null
-# StudioCast v4l2loopback options
-options v4l2loopback video_nr=${VIDEO_NR} card_label="${LABEL}" exclusive_caps=${EXCLUSIVE_CAPS}
-EOF
-
-  log "Wrote:"
-  log "  /etc/modules-load.d/v4l2loopback.conf"
-  log "  /etc/modprobe.d/studiocast-v4l2loopback.conf"
-  log "You can verify after reboot with:"
-  log "  modinfo v4l2loopback | head"
-  log "  ls -l /dev/video${VIDEO_NR}"
 }
 
 while [[ $# -gt 0 ]]; do
