@@ -6148,7 +6148,13 @@ void CameraPipeline::ThreadMain(CameraPipelineConfig cfg) {
       return *maxine_diag;
     };
     auto append_canonical_maxine_blocked =
-        [&](studiocast::maxine::MaxineNeed need) {
+        [&](studiocast::maxine::MaxineNeed need,
+            std::string_view detail = {}) {
+          if (!detail.empty()) {
+            if (!note.empty())
+              note += "\n";
+            note.append(detail);
+          }
           const auto &d = get_maxine_diag();
           const auto c =
               studiocast::maxine::BuildCanonicalMaxineBlockedCopy(d, need);
@@ -6310,7 +6316,7 @@ void CameraPipeline::ThreadMain(CameraPipelineConfig cfg) {
         } else {
           if (engine_maxine) {
             append_canonical_maxine_blocked(
-                studiocast::maxine::MaxineNeed::vfx);
+                studiocast::maxine::MaxineNeed::vfx, mx_err);
             maxine_strict_blocked = true;
           } else {
             // AUTO: prefer Open Video FastDVDnet when installed; fall back to
@@ -6517,7 +6523,7 @@ void CameraPipeline::ThreadMain(CameraPipelineConfig cfg) {
             append_backend_note("Maxine VFX");
           } else {
             append_canonical_maxine_blocked(
-                studiocast::maxine::MaxineNeed::vfx);
+                studiocast::maxine::MaxineNeed::vfx, mx_err);
             maxine_strict_blocked = true;
             if (vb_effect_id.has_value())
               remove_stage_from_plan(*vb_effect_id);
@@ -6783,7 +6789,8 @@ void CameraPipeline::ThreadMain(CameraPipelineConfig cfg) {
                 "represent the current RGB continuation are counted.";
           }
         } else if (engine_maxine) {
-          append_canonical_maxine_blocked(studiocast::maxine::MaxineNeed::vfx);
+          append_canonical_maxine_blocked(studiocast::maxine::MaxineNeed::vfx,
+                                          mx_err);
           maxine_strict_blocked = true;
           detach_vignette_from_key_light();
         } else {
