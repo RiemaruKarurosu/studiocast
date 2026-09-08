@@ -63,6 +63,17 @@ bool ArAutoFrameTracker::EnsureFeatureInitialized(
     return false;
   }
 
+  if (auto md = ar_->models_dir(); !md.empty() && ar_->f().NvAR_SetString) {
+    const auto st_dir = ar_->f().NvAR_SetString(
+        h, studiocast::maxine::ar::NVAR_CONFIG_MODEL_DIR, md.c_str());
+    if (st_dir != studiocast::maxine::NVCV_SUCCESS) {
+      if (error_out)
+        *error_out = "NvAR_SetString(ModelDir=" + md.string() +
+                     ") failed: " + ar_->StatusToString(st_dir);
+      return false;
+    }
+  }
+
   if (!ar_->f().NvAR_Load) {
     if (error_out)
       *error_out = "NvAR_Load symbol unavailable.";

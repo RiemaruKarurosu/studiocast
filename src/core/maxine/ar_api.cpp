@@ -1,4 +1,5 @@
 #include "core/maxine/ar_api.h"
+#include "core/maxine/paths.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -328,6 +329,16 @@ std::string ArApi::StatusToString(NvCV_Status code) const {
   std::ostringstream oss;
   oss << "NvCV_Status(" << code << ")";
   return oss.str();
+}
+
+std::filesystem::path ArApi::models_dir() const {
+  if (library_path_.empty())
+    return {};
+  // <root>/lib/<library> -> <root>
+  const auto root = library_path_.parent_path().parent_path();
+  if (root.empty())
+    return {};
+  return studiocast::maxine::ResolveModelsDir(root);
 }
 
 } // namespace studiocast::maxine::ar

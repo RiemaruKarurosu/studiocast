@@ -22,6 +22,12 @@
 namespace studiocast::maxine::ar {
 
 // Feature selector strings.
+// NvAR_Parameter_Config(ModelDir) from nvAR_defs.h. The AR features look for
+// their models here; without it NvAR_Load fails with "The file could not be
+// found".
+inline constexpr const char *NVAR_CONFIG_MODEL_DIR =
+    "NvAR_Parameter_Config_ModelDir";
+
 inline constexpr const char *NVAR_FEATURE_GAZE_REDIRECTION = "GazeRedirection";
 inline constexpr const char *NVAR_FEATURE_FACE_BOX_DETECTION =
     "FaceBoxDetection";
@@ -165,6 +171,9 @@ public:
 
   bool IsInitialized() const { return initialized_; }
   const std::filesystem::path &library_path() const { return library_path_; }
+
+  // Directory holding the AR feature models, derived from the loaded library.
+  std::filesystem::path models_dir() const;
   const Functions &f() const { return f_; }
   const std::string &error() const { return error_; }
 
