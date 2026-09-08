@@ -1,4 +1,5 @@
 #include "core/maxine/vfx_api.h"
+#include "core/maxine/paths.h"
 
 #include "core/util/xdg.h"
 
@@ -173,7 +174,7 @@ bool VfxApi::InitializeImpl(const std::vector<std::filesystem::path> &sdk_roots,
       continue;
     }
 
-    const auto models = root / "models";
+    const auto models = ResolveModelsDir(root);
     if (!fs::exists(models, ec) || !fs::is_directory(models, ec)) {
       continue;
     }

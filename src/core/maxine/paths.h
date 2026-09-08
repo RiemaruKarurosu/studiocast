@@ -8,6 +8,13 @@ namespace studiocast::maxine {
 
 namespace fs = std::filesystem;
 
+// Resolve a Maxine component's models directory.
+//
+// Older SDK layouts keep it at <root>/models; the current Linux VFX/AR SDKs
+// install feature models under <root>/lib/models. Returns the first that
+// exists, falling back to <root>/models so error messages stay stable.
+fs::path ResolveModelsDir(const fs::path &root);
+
 struct ComponentPaths {
   std::string component;    // e.g. "VFX" or "AR"
   std::string root_env_var; // e.g. "STUDIOCAST_VFX_SDK_ROOT"

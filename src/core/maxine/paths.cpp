@@ -9,6 +9,14 @@
 
 namespace studiocast::maxine {
 
+fs::path ResolveModelsDir(const fs::path &root) {
+  std::error_code ec;
+  const fs::path lib_models = root / "lib" / "models";
+  if (fs::is_directory(lib_models, ec))
+    return lib_models;
+  return root / "models";
+}
+
 namespace {
 namespace fs = std::filesystem;
 
@@ -145,7 +153,7 @@ ResolveComponent(const std::string &component, const char *env_var,
       ChooseRoot(env_override, xdg_default, system_default, &out.root_source);
   out.root_exists = DirExists(out.root);
 
-  out.models_dir = out.root / "models";
+  out.models_dir = ResolveModelsDir(out.root);
   out.features_dir = out.root / "features";
 
   out.models_dir_exists = DirExists(out.models_dir);

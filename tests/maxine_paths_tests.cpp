@@ -255,12 +255,53 @@ bool TestCurrentLinuxMaxineLibraryNamesResolve() {
   return ok;
 }
 
+bool TestResolveModelsDirPrefersLibModels() {
+  namespace fs = std::filesystem;
+  const fs::path base =
+      fs::temp_directory_path() / "studiocast-maxine-models-dir";
+  std::error_code ec;
+  fs::remove_all(base, ec);
+
+  // Current Linux VFX/AR SDKs install feature models under <root>/lib/models.
+  const fs::path current = base / "current";
+  fs::create_directories(current / "lib" / "models", ec);
+  if (studiocast::maxine::ResolveModelsDir(current) !=
+      current / "lib" / "models") {
+    std::cout << "[FAIL] lib/models layout not resolved\n";
+    return false;
+  }
+
+  // Older layout keeps it at <root>/models.
+  const fs::path legacy = base / "legacy";
+  fs::create_directories(legacy / "models", ec);
+  if (studiocast::maxine::ResolveModelsDir(legacy) != legacy / "models") {
+    std::cout << "[FAIL] legacy models layout not resolved\n";
+    return false;
+  }
+
+  // Neither present: fall back to <root>/models so error copy stays stable.
+  const fs::path missing = base / "missing";
+  fs::create_directories(missing, ec);
+  if (studiocast::maxine::ResolveModelsDir(missing) != missing / "models") {
+    std::cout << "[FAIL] missing models dir did not fall back\n";
+    return false;
+  }
+
+  fs::remove_all(base, ec);
+  return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
   if (std::getenv("STUDIOCAST_AFX_LOADER_PRIORITY_CHILD")) {
     return RunAfxLoaderPriorityChild() ? 0 : 1;
   }
+
+  if (!TestResolveModelsDirPrefersLibModels()) {
+    return 1;
+  }
+  std::cout << "[PASS] models dir resolves lib/models and legacy layouts\n";
 
   if (!TestCurrentLinuxMaxineLibraryNamesResolve()) {
     std::cout << "[FAIL] current Linux Maxine library names resolve\n";
